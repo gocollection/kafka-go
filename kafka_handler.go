@@ -4,29 +4,29 @@ import (
 	"github.com/Shopify/sarama"
 )
 
-func NewConsumerHandler(handlers map[string]TopicHandler, fallback map[string]TopicHandler) *ConsumerHandler {
-	return &ConsumerHandler{
-		Ready:     make(chan bool),
-		Handlers:  handlers,
-		Fallbacks: fallback,
+func newConsumerHandler(handlers map[string]TopicHandler, fallback map[string]TopicHandler) *consumerHandler {
+	return &consumerHandler{
+		ready:     make(chan bool),
+		handlers:  handlers,
+		fallbacks: fallback,
 	}
 }
 
-type ConsumerHandler struct {
-	Ready               chan bool
-	Handlers, Fallbacks map[string]TopicHandler
+type consumerHandler struct {
+	ready               chan bool
+	handlers, fallbacks map[string]TopicHandler
 }
 
-func (ch *ConsumerHandler) Setup(sarama.ConsumerGroupSession) error {
-	close(ch.Ready)
+func (ch *consumerHandler) Setup(sarama.ConsumerGroupSession) error {
+	close(ch.ready)
 	return nil
 }
 
-func (ch *ConsumerHandler) Cleanup(sarama.ConsumerGroupSession) error {
+func (ch *consumerHandler) Cleanup(sarama.ConsumerGroupSession) error {
 	return nil
 }
 
-func (ch *ConsumerHandler) ConsumeClaim(session sarama.ConsumerGroupSession, claim sarama.ConsumerGroupClaim) error {
+func (ch *consumerHandler) ConsumeClaim(session sarama.ConsumerGroupSession, claim sarama.ConsumerGroupClaim) error {
 	messageChan := claim.Messages()
 	for {
 		select {
@@ -35,8 +35,8 @@ func (ch *ConsumerHandler) ConsumeClaim(session sarama.ConsumerGroupSession, cla
 				if message == nil {
 					continue
 				}
-				if handler := ch.Handlers[message.Topic]; handler != nil {
-					msg := &Message{
+				if handler := ch.handlers[message.Topic]; handler != nil {
+					msg := &SubscriberMessage{
 						Topic:     message.Topic,
 						Partition: message.Partition,
 						Offset:    message.Offset,
@@ -48,7 +48,7 @@ func (ch *ConsumerHandler) ConsumeClaim(session sarama.ConsumerGroupSession, cla
 						session.MarkMessage(message, "")
 					} else {
 						// handling failed, trying fallback handler if any
-						if fbHandler := ch.Fallbacks[message.Topic]; fbHandler != nil {
+						if fbHandler := ch.fallbacks[message.Topic]; fbHandler != nil {
 							fbHandler.Handle(session.Context(), msg)
 						}
 						session.MarkMessage(message, "")

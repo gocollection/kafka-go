@@ -89,6 +89,32 @@ type KafkaConsumerParam struct {
 }
 ```
 
+## TopicHandler
+
+```go
+type TopicHandler interface {
+	// Handle gets the actual message to be handled. A business logic for a given
+	// message should ideally be implemented here.
+	Handle(ctx context.Context, message *SubscriberMessage) bool
+}
+```
+TopicHandler is an intuitive interface which exposes a single function **Handle**.
+An implementation to this interface should be used as handler for messages from a topic.
+Technically the business logic post receive the message from the topic should trigger from here.
+The handler has not been tightly bounded to a topic on purpose to allow it be used for multiple
+topics at once. The implementation should be **thread/goroutine safe** obviously. Example - 
+
+```go
+// test topic handler
+type testTopicHandler struct {
+}
+
+func (t *testTopicHandler) Handle(ctx context.Context, msg *SubscriberMessage) bool {
+	Logger.Printf("Topic: %v, Partition: %v, SubscriberMessage: %v", msg.Topic, msg.Partition, string(msg.Value))
+	return true
+}
+```
+
 ## Producer
 Next obvious abstraction that any pubsub library will export is **Producer**.
 

@@ -14,15 +14,18 @@ func newConsumerHandler(handlers map[string]TopicHandler, fallback map[string]To
 
 type consumerHandler struct {
 	ready               chan bool
+	retryCount          int8
 	handlers, fallbacks map[string]TopicHandler
 }
 
 func (ch *consumerHandler) Setup(sarama.ConsumerGroupSession) error {
+	ch.retryCount = 0
 	close(ch.ready)
 	return nil
 }
 
 func (ch *consumerHandler) Cleanup(sarama.ConsumerGroupSession) error {
+	ch.retryCount = 0
 	return nil
 }
 

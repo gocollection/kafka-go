@@ -96,6 +96,7 @@ type kafkaProducerParam struct {
 
 	// [Optional]
 	// kafka cluster version. eg - "2.2.1" default - "2.3.0"
+	// supports versions from "0.8.x" to "2.3.x"
 	Version string
 
 	// [Optional]

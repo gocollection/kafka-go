@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 )
 
 /*
@@ -27,9 +28,13 @@ example:
 		// handle error
 	}
 	// start the blocking consumer process
-	consumerA.Start(context.Background())
+	consumer.Start(context.Background())
 
 Refer to test example for better understanding
+
+Note: consumer instance is not goroutine safe and should be used once (in one goroutine) to start the consumer.
+If multiple such consumer is required even to the same broker set and consumer group, consider creating a new
+one using this function. However using same instance to start consumer multiple times won't be fatal.
 */
 func NewKafkaConsumer(params *KafkaConsumerParam) (*kafkaConsumer, error) {
 	if params.Brokers == nil || len(params.Brokers) == 0 {
@@ -96,6 +101,7 @@ type KafkaConsumerParam struct {
 
 	// [Optional]
 	// kafka cluster version. eg - "2.2.1" default - "2.3.0"
+	// supports versions from "0.8.x" to "2.3.x"
 	Version string
 }
 
@@ -140,14 +146,26 @@ func (kc *kafkaConsumer) Start(parentContext context.Context) {
 
 	go func() {
 		for {
+			retryCount := kc.cgh.retryCount
+			// try consume with retry
 			if err := cg.Consume(ctx, kc.topics, kc.cgh); err != nil {
-				Logger.Printf("Error while registering consumer, %v", err)
+				if retryCount == 5 {
+					Logger.Panicf("Couldn't register the consumer, %v", err)
+				}
+				kc.cgh.retryCount = retryCount + 1
+				Logger.Printf("Error registering consumer: %v, retrying in %v seconds", err, kc.cgh.retryCount)
+				time.Sleep(time.Duration(kc.cgh.retryCount) * time.Second)
 			}
+			// if the consumer context has been cancelled
 			if ctx.Err() != nil {
 				Logger.Println("Consumer context has been canceled")
 				return
 			}
-			kc.cgh.ready = make(chan bool)
+			// only if its a re-balance
+			if kc.cgh.retryCount == 0 {
+				Logger.Printf("Kafka rebalancing triggered")
+				kc.cgh.ready = make(chan bool)
+			}
 		}
 	}()
 

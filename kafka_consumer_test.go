@@ -124,12 +124,3 @@ func ExampleConsumerMultiple() {
 	}()
 	group.Wait()
 }
-
-// test topic handler
-type testTopicHandler struct {
-}
-
-func (t *testTopicHandler) Handle(ctx context.Context, msg *SubscriberMessage) bool {
-	Logger.Printf("Topic: %v, Partition: %v, SubscriberMessage: %v", msg.Topic, msg.Partition, string(msg.Value))
-	return true
-}

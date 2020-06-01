@@ -72,7 +72,28 @@ type KafkaConsumerParam struct {
 	// Topic to its fallback handler map.
 	// If the Main handler returns false, it will try to fallback handler.
 	// it will commit the offset not matter fallback handler returns true or false.
+	// default - "no fallback"
 	Fallbacks map[string]TopicHandler
+
+	// [Optional]
+	// List of middleware to be triggered post claim of every message & before actual
+	// message handling. Middleware will be triggered in increasing order order of index.
+	// default - "no middleware"
+	middleware []ConsumerMiddleware
+
+	// [Optional]
+	// List of interceptor, like Middleware it trigger post claim of every message, but unlike
+	// middleware interceptor is available after the actual handler return. Interceptors are
+	// triggered in layered manner, lower index being the outer layer and vice versa. This is
+	// similar to recursive call, the one called first will return last.
+	// default - "noOpInterceptor"
+	interceptor []ConsumerInterceptor
+
+	// [Optional]
+	// Attach a meta map with every claimed message before passing it to actual handler, can be used
+	// to persist state during the lifecycle of a claimed message. Middleware or Interceptor can also
+	// use this meta to store variable across. default - "false"
+	MessageMeta bool
 
 	// [Optional]
 	// Client identity for logging purpose
@@ -85,6 +106,7 @@ type KafkaConsumerParam struct {
 
 	// [Optional]
 	// kafka cluster version. eg - "2.2.1" default - "2.3.0"
+	// supports versions from "0.8.x" to "2.3.x"
 	Version string
 }
 ```

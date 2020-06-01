@@ -38,6 +38,9 @@ type SubscriberMessage struct {
 
 	// actual message bytes
 	Value []byte
+
+	// any state to carry with message
+	Meta map[string]interface{}
 }
 
 /*
@@ -70,7 +73,6 @@ Producer is the exposed functionality to the end customer to interact with the p
 The interface is implemented by kafkaConsumer in the package
 */
 type Producer interface {
-
 	// PublishSync send message to the pubsub cluster in Sync way. Call to this function is blocking and
 	// returns only after the publish is done or result in an error. Meta contains the publish related meta info
 	PublishSync(message *PublisherMessage) (meta map[string]interface{}, err error)
@@ -91,3 +93,30 @@ type Producer interface {
 	// Close triggers the closure of the associated producer client to avoid any leaks
 	Close()
 }
+
+/*
+Consumer functional middleware to be used to touch message before it get passed to the actual message handler.
+Its similar to Before advice in AOP. Middleware can also set some sort of message state that can be retrieved
+and used later at the time of message handling. Can be thought of as pre handler across all topics and can be used
+to decorate message before passing it to the handler.
+
+see SubscriberMessage.Meta
+
+middleware : MW
+
+msg => MW_0 => MW_1 => ...... => MW_n => [msg_handler]
+
+*/
+type ConsumerMiddleware func(ctx context.Context, msg *SubscriberMessage)
+
+/*
+Interceptor is construct similar to Around advice in AOP. An interceptor will be able to not only touch the message
+or execute something before message being passed to the handler, but also get to do the needful post the handler returns.
+
+B : task before handler
+A : task after handler
+interceptor : IC
+
+msg => IC_0 => {B_0 -> IC_1 => {{B_1 -> .... ->IC_n => {..{B_n -> [msg_handler] -> A_n}..} -> .... -> A_1}} -> A_0}
+*/
+type ConsumerInterceptor func(ctx context.Context, msg *SubscriberMessage, handler func(context.Context, *SubscriberMessage) bool) bool

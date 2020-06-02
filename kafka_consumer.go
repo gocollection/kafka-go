@@ -63,7 +63,7 @@ func NewKafkaConsumer(params *KafkaConsumerParam) (*kafkaConsumer, error) {
 	}
 	return &kafkaConsumer{
 		cg:     consumerGroup,
-		cgh:    newConsumerHandler(params.Handlers, params.Fallbacks, params.middleware, params.interceptor, params.MessageMeta),
+		cgh:    newConsumerHandler(params.Handlers, params.Fallbacks, params.Middleware, params.Interceptor, params.MessageMeta),
 		topics: params.Topics,
 	}, nil
 }
@@ -92,18 +92,18 @@ type KafkaConsumerParam struct {
 	Fallbacks map[string]TopicHandler
 
 	// [Optional]
-	// List of middleware to be triggered post claim of every message & before actual
+	// List of Middleware to be triggered post claim of every message & before actual
 	// message handling. Middleware will be triggered in increasing order order of index.
-	// default - "no middleware"
-	middleware []ConsumerMiddleware
+	// default - "no Middleware"
+	Middleware []ConsumerMiddleware
 
 	// [Optional]
-	// List of interceptor, like Middleware it trigger post claim of every message, but unlike
-	// middleware interceptor is available after the actual handler return. Interceptors are
+	// List of Interceptor, like Middleware it trigger post claim of every message, but unlike
+	// Middleware Interceptor is available after the actual handler return. Interceptors are
 	// triggered in layered manner, lower index being the outer layer and vice versa. This is
 	// similar to recursive call, the one called first will return last.
 	// default - "noOpInterceptor"
-	interceptor []ConsumerInterceptor
+	Interceptor []ConsumerInterceptor
 
 	// [Optional]
 	// Attach a meta map with every claimed message before passing it to actual handler, can be used

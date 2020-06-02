@@ -75,7 +75,7 @@ func (ch *consumerHandler) ConsumeClaim(session sarama.ConsumerGroupSession, cla
 						msg.Meta = make(map[string]interface{})
 					}
 
-					// invoke middleware if present
+					// invoke Middleware if present
 					if ch.middlewarePresent {
 						ch.invokeMiddleware(session.Context(), msg)
 					}

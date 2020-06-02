@@ -20,6 +20,12 @@ type testTopicHandler struct {
 
 func (t *testTopicHandler) Handle(ctx context.Context, msg *SubscriberMessage) bool {
 	Logger.Printf("Topic: %v, Partition: %v, SubscriberMessage: %v", msg.Topic, msg.Partition, string(msg.Value))
+	meta := ctx.Value("meta").(map[string]interface{})
+	if meta["msg"] == nil {
+		meta["msg"] = make([]string, 0)
+	}
+	messages := meta["msg"].([]string)
+	meta["msg"] = append(messages, string(msg.Key))
 	return true
 }
 

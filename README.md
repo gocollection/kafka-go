@@ -72,7 +72,28 @@ type KafkaConsumerParam struct {
 	// Topic to its fallback handler map.
 	// If the Main handler returns false, it will try to fallback handler.
 	// it will commit the offset not matter fallback handler returns true or false.
+	// default - "no fallback"
 	Fallbacks map[string]TopicHandler
+
+	// [Optional]
+	// List of middleware to be triggered post claim of every message & before actual
+	// message handling. Middleware will be triggered in increasing order order of index.
+	// default - "no middleware"
+	middleware []ConsumerMiddleware
+
+	// [Optional]
+	// List of interceptor, like Middleware it trigger post claim of every message, but unlike
+	// middleware interceptor is available after the actual handler return. Interceptors are
+	// triggered in layered manner, lower index being the outer layer and vice versa. This is
+	// similar to recursive call, the one called first will return last.
+	// default - "noOpInterceptor"
+	interceptor []ConsumerInterceptor
+
+	// [Optional]
+	// Attach a meta map with every claimed message before passing it to actual handler, can be used
+	// to persist state during the lifecycle of a claimed message. Middleware or Interceptor can also
+	// use this meta to store variable across. default - "false"
+	MessageMeta bool
 
 	// [Optional]
 	// Client identity for logging purpose
@@ -85,6 +106,7 @@ type KafkaConsumerParam struct {
 
 	// [Optional]
 	// kafka cluster version. eg - "2.2.1" default - "2.3.0"
+	// supports versions from "0.8.x" to "2.3.x"
 	Version string
 }
 ```
@@ -112,6 +134,57 @@ type testTopicHandler struct {
 func (t *testTopicHandler) Handle(ctx context.Context, msg *SubscriberMessage) bool {
 	Logger.Printf("Topic: %v, Partition: %v, SubscriberMessage: %v", msg.Topic, msg.Partition, string(msg.Value))
 	return true
+}
+```
+
+## Middleware
+
+```go
+type ConsumerMiddleware func(ctx context.Context, msg *SubscriberMessage)
+```
+Middleware is a construct similar to **Before** advice in _AOP_. Middleware comes just after claiming a message
+from a topic and before passing it to its handler down the line. Middleware can be used to decorate the message or
+preprocess something across topics before actual handling. This saves from writing common code across all the topic
+handlers. The middleware can be optionally used to enrich message meta which can be used inside actual handler or later
+in the handling pipeline. Multiple independent middleware can be used which pre-process the message in a pre-defined
+manner. Use cases can be -
+
+* Filtering messages to pass relevant messages to the actual handler
+* Validating message for correctness
+* logging, throttling, decorating etc are few other possibilities 
+
+## Interceptor
+
+```go
+type ConsumerInterceptor func(ctx context.Context, msg *SubscriberMessage, handler func(context.Context, *SubscriberMessage) bool) bool
+``` 
+Interceptor is a construct similar to **Around** advice in _AOP_. Interceptor life cycle start just after claiming a
+message around the handler and available even after the handler return. Interceptor might come handy start some processing
+before actual message handling and ending it after the handling is done. Use cases can be -
+
+* Newrelic transaction start before message handling and close after handler returns
+* Collect data around message processing like time to process a message or so
+* Take some common action on expected/unexpected handling of a message, like publish to dead letter
+
+Multiple independent interceptor can be used which works in a layered fashion. For example if the List of interceptor
+consist of **IC_1**, **IC_2**, **IC_3**, the processing will look like -
+
+```
+IC_1
+{
+  before_1
+    IC_2
+    {
+      before_2
+        IC_3
+        {
+          before_3
+            message_handler(.....)
+          after_3
+        }
+      after_2
+    }
+  after_1
 }
 ```
 

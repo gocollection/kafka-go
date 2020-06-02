@@ -1,21 +1,46 @@
 package kafka_go
 
 import (
+	"context"
 	"github.com/Shopify/sarama"
 )
 
-func newConsumerHandler(handlers map[string]TopicHandler, fallback map[string]TopicHandler) *consumerHandler {
-	return &consumerHandler{
-		ready:     make(chan bool),
-		handlers:  handlers,
-		fallbacks: fallback,
+func newConsumerHandler(handlers map[string]TopicHandler, fallback map[string]TopicHandler,
+	middleware []ConsumerMiddleware, interceptor []ConsumerInterceptor, meta bool) *consumerHandler {
+	consumerHandler := &consumerHandler{
+		ready:             make(chan bool),
+		handlers:          handlers,
+		fallbacks:         fallback,
+		middleware:        middleware,
+		middlewarePresent: middleware != nil && len(middleware) > 0,
+		messageMeta:       meta,
 	}
+	if interceptor == nil || len(interceptor) == 0 {
+		consumerHandler.interceptor = noOpInterceptor
+	} else {
+		chainedInterceptor := func(ctx context.Context, msg *SubscriberMessage, handler func(context.Context, *SubscriberMessage) bool) bool {
+			for i := len(interceptor) - 1; i >= 0; i-- {
+				currentInterceptor := interceptor[i]
+				currentHandler := handler
+				handler = func(ctx context.Context, msg *SubscriberMessage) bool {
+					return currentInterceptor(ctx, msg, currentHandler)
+				}
+			}
+			return handler(ctx, msg)
+		}
+		consumerHandler.interceptor = chainedInterceptor
+	}
+	return consumerHandler
 }
 
 type consumerHandler struct {
 	ready               chan bool
 	retryCount          int8
 	handlers, fallbacks map[string]TopicHandler
+	middleware          []ConsumerMiddleware
+	interceptor         ConsumerInterceptor
+	middlewarePresent   bool
+	messageMeta         bool
 }
 
 func (ch *consumerHandler) Setup(sarama.ConsumerGroupSession) error {
@@ -46,7 +71,15 @@ func (ch *consumerHandler) ConsumeClaim(session sarama.ConsumerGroupSession, cla
 						Key:       message.Key,
 						Value:     message.Value,
 					}
-					if handler.Handle(session.Context(), msg) {
+					if ch.messageMeta {
+						msg.Meta = make(map[string]interface{})
+					}
+
+					// invoke Middleware if present
+					if ch.middlewarePresent {
+						ch.invokeMiddleware(session.Context(), msg)
+					}
+					if ch.interceptor(session.Context(), msg, handler.Handle) {
 						// successful handling
 						session.MarkMessage(message, "")
 					} else {
@@ -68,4 +101,14 @@ func (ch *consumerHandler) ConsumeClaim(session sarama.ConsumerGroupSession, cla
 			}
 		}
 	}
+}
+
+func (ch *consumerHandler) invokeMiddleware(ctx context.Context, msg *SubscriberMessage) {
+	for _, m := range ch.middleware {
+		m(ctx, msg)
+	}
+}
+
+func noOpInterceptor(ctx context.Context, msg *SubscriberMessage, handler func(context.Context, *SubscriberMessage) bool) bool {
+	return handler(ctx, msg)
 }

@@ -252,5 +252,5 @@ for any possible **bugs** or **new use cases**. Always keep in mind the intent o
 [mit-img]: http://img.shields.io/badge/License-MIT-blue.svg
 [mit]: https://github.com/saurav534/kafka-go/blob/master/LICENSE
 
-[ci-img]: https://travis-ci.com/saurav534/kafka-go.svg?branch=master
-[ci]: https://travis-ci.com/github/saurav534/kafka-go/branches
+[ci-img]: https://travis-ci.com/gocollection/kafka-go.svg?branch=master
+[ci]: https://travis-ci.com/github/gocollection/kafka-go/branches

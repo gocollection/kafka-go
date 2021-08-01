@@ -1,4 +1,4 @@
-module github.com/saurav534/kafka-go
+module github.com/gocollection/kafka-go
 
 go 1.13
 
